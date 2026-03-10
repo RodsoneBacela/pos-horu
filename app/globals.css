@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans:  'Instrument Sans',  system-ui, sans-serif;
+  --font-mono:  'JetBrains Mono',   monospace;
+  --font-serif: 'Instrument Serif', serif;
+
+  --color-brand-50:  #eff4ff;
+  --color-brand-100: #dbe8fe;
+  --color-brand-200: #bfd3fe;
+  --color-brand-300: #93b4fd;
+  --color-brand-400: #6090fa;
+  --color-brand-500: #3b6ef6;
+  --color-brand-600: #1a56db;
+  --color-brand-700: #1245b5;
+  --color-brand-800: #153991;
+  --color-brand-900: #162d6b;
+
+  --sidebar-width:  240px;
+  --topbar-height:  56px;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: #f9fafb;
+    color: #111827;
+    font-family: var(--font-sans);
+  }
+
+  ::-webkit-scrollbar       { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+}

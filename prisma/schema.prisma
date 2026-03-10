@@ -1,0 +1,395 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================
+// ENUMS
+// =============================================
+
+enum Role {
+  ADMIN
+  GERENTE
+  CAIXA
+}
+
+enum TipoMovimentoStock {
+  ENTRADA_COMPRA
+  SAIDA_VENDA
+  AJUSTE_POSITIVO
+  AJUSTE_NEGATIVO
+  DEVOLUCAO_CLIENTE
+  DEVOLUCAO_FORNECEDOR
+  PERDA
+}
+
+enum MetodoPagamento {
+  DINHEIRO
+  MPESA
+  EMOLA
+  CARTAO_DEBITO
+  CARTAO_CREDITO
+  TRANSFERENCIA
+  CREDITO
+}
+
+enum EstadoVenda {
+  CONCLUIDA
+  ANULADA
+  PENDENTE
+}
+
+enum EstadoCaixa {
+  ABERTA
+  FECHADA
+}
+
+enum EstadoCompra {
+  PENDENTE
+  RECEBIDA
+  PARCIAL
+  CANCELADA
+}
+
+// =============================================
+// CONFIGURAÇÕES DO SISTEMA (multi-uso)
+// =============================================
+
+model Empresa {
+  id          String  @id @default(cuid())
+  nome        String
+  nif         String?
+  endereco    String?
+  telefone    String?
+  email       String?
+  website     String?
+  logo        String? // URL
+  moeda       String  @default("MT")
+  timezone    String  @default("Africa/Maputo")
+  tipoNegocio String  @default("FARMACIA") // FARMACIA, RESTAURANTE, BAR, LOJA, etc.
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("empresa")
+}
+
+model TaxaIva {
+  id        String   @id @default(cuid())
+  nome      String   // ex: "IVA 17%", "Isento", "IVA Reduzido 5%"
+  taxa      Decimal  @db.Decimal(5, 2) // ex: 17.00, 0.00, 5.00
+  activo    Boolean  @default(true)
+  padrao    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  produtos  Produto[]
+
+  @@map("taxas_iva")
+}
+
+model Categoria {
+  id        String    @id @default(cuid())
+  nome      String    @unique
+  descricao String?
+  cor       String?   // hex color para UI
+  icone     String?   // nome do ícone lucide
+  activo    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  produtos  Produto[]
+
+  @@map("categorias")
+}
+
+model UnidadeMedida {
+  id        String    @id @default(cuid())
+  nome      String    @unique // ex: "Comprimido", "Frasco", "Kg", "Litro", "Unidade"
+  abreviatura String? // ex: "cp", "fr", "kg", "lt", "un"
+  activo    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  produtos  Produto[]
+
+  @@map("unidades_medida")
+}
+
+// =============================================
+// UTILIZADORES
+// =============================================
+
+model User {
+  id        String   @id @default(cuid())
+  nome      String
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      Role     @default(CAIXA)
+  activo    Boolean  @default(true)
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vendas          Venda[]
+  movimentosStock MovimentoStock[]
+  caixas          Caixa[]
+  compras         CompraOrdem[]
+  ajustesStock    AjusteStock[]
+
+  @@map("users")
+}
+
+// =============================================
+// PRODUTOS
+// =============================================
+
+model Fornecedor {
+  id        String   @id @default(cuid())
+  nome      String
+  nif       String?  @unique
+  telefone  String?
+  email     String?
+  endereco  String?
+  contacto  String?  // nome do contacto
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  produtos  ProdutoFornecedor[]
+  compras   CompraOrdem[]
+
+  @@map("fornecedores")
+}
+
+model Produto {
+  id                String   @id @default(cuid())
+  codigo            String   @unique
+  codigoBarras      String?  @unique
+  nome              String
+  descricao         String?
+  categoriaId       String
+  unidadeId         String
+  taxaIvaId         String
+  fabricante        String?
+  precoCompra       Decimal  @db.Decimal(10, 2)
+  precoVenda        Decimal  @db.Decimal(10, 2)
+  stockActual       Int      @default(0)
+  stockMinimo       Int      @default(0)
+  stockMaximo       Int?
+  validade          DateTime?
+  lote              String?
+  imagem            String?
+  activo            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  categoria         Categoria      @relation(fields: [categoriaId], references: [id])
+  unidade           UnidadeMedida  @relation(fields: [unidadeId], references: [id])
+  taxaIva           TaxaIva        @relation(fields: [taxaIvaId], references: [id])
+  vendaItens        VendaItem[]
+  movimentos        MovimentoStock[]
+  fornecedores      ProdutoFornecedor[]
+  compraItens       CompraItem[]
+
+  @@index([nome])
+  @@index([codigo])
+  @@index([categoriaId])
+  @@index([stockActual])
+  @@map("produtos")
+}
+
+model ProdutoFornecedor {
+  produtoId    String
+  fornecedorId String
+  precoCompra  Decimal @db.Decimal(10, 2)
+  referencia   String? // referência do produto no fornecedor
+
+  produto      Produto    @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+
+  @@id([produtoId, fornecedorId])
+  @@map("produto_fornecedores")
+}
+
+model MovimentoStock {
+  id               String             @id @default(cuid())
+  produtoId        String
+  tipo             TipoMovimentoStock
+  quantidade       Int
+  quantidadeAntes  Int
+  quantidadeDepois Int
+  referencia       String?            // ID da venda, compra ou ajuste
+  tipoReferencia   String?            // "VENDA", "COMPRA", "AJUSTE"
+  motivo           String?
+  userId           String
+  createdAt        DateTime           @default(now())
+
+  produto          Produto  @relation(fields: [produtoId], references: [id])
+  user             User     @relation(fields: [userId], references: [id])
+
+  @@index([produtoId])
+  @@index([createdAt])
+  @@index([tipo])
+  @@map("movimentos_stock")
+}
+
+model AjusteStock {
+  id          String   @id @default(cuid())
+  userId      String
+  motivo      String
+  observacoes String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("ajustes_stock")
+}
+
+// =============================================
+// CAIXA
+// =============================================
+
+model Caixa {
+  id              String      @id @default(cuid())
+  userId          String
+  saldoInicial    Decimal     @db.Decimal(10, 2)
+  saldoFinal      Decimal?    @db.Decimal(10, 2)
+  totalVendas     Decimal     @default(0) @db.Decimal(10, 2)
+  totalDinheiro   Decimal     @default(0) @db.Decimal(10, 2)
+  totalMpesa      Decimal     @default(0) @db.Decimal(10, 2)
+  totalEmola      Decimal     @default(0) @db.Decimal(10, 2)
+  totalCartao     Decimal     @default(0) @db.Decimal(10, 2)
+  totalTransf     Decimal     @default(0) @db.Decimal(10, 2)
+  qtdVendas       Int         @default(0)
+  estado          EstadoCaixa @default(ABERTA)
+  observacoes     String?
+  abertaEm        DateTime    @default(now())
+  fechadaEm       DateTime?
+
+  user            User        @relation(fields: [userId], references: [id])
+  vendas          Venda[]
+
+  @@index([estado])
+  @@index([abertaEm])
+  @@map("caixas")
+}
+
+// =============================================
+// VENDAS & FATURAÇÃO
+// =============================================
+
+model Venda {
+  id              String          @id @default(cuid())
+  numero          String          @unique  // V-2025-00001
+  clienteNome     String?
+  clienteNif      String?
+  userId          String
+  caixaId         String
+  subtotal        Decimal         @db.Decimal(10, 2)
+  totalDesconto   Decimal         @default(0) @db.Decimal(10, 2)
+  totalIva        Decimal         @db.Decimal(10, 2)
+  total           Decimal         @db.Decimal(10, 2)
+  metodoPagamento MetodoPagamento
+  valorPago       Decimal         @db.Decimal(10, 2)
+  troco           Decimal         @default(0) @db.Decimal(10, 2)
+  estado          EstadoVenda     @default(CONCLUIDA)
+  motivoAnulacao  String?
+  observacoes     String?
+  createdAt       DateTime        @default(now())
+
+  user            User            @relation(fields: [userId], references: [id])
+  caixa           Caixa           @relation(fields: [caixaId], references: [id])
+  itens           VendaItem[]
+  fatura          Fatura?
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([estado])
+  @@index([numero])
+  @@map("vendas")
+}
+
+model VendaItem {
+  id           String   @id @default(cuid())
+  vendaId      String
+  produtoId    String
+  nomeProduto  String   // snapshot do nome no momento da venda
+  quantidade   Int
+  precoUnit    Decimal  @db.Decimal(10, 2)
+  desconto     Decimal  @default(0) @db.Decimal(10, 2)
+  taxaIva      Decimal  @db.Decimal(5, 2)  // snapshot da taxa
+  subtotal     Decimal  @db.Decimal(10, 2)
+
+  venda        Venda    @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  produto      Produto  @relation(fields: [produtoId], references: [id])
+
+  @@index([vendaId])
+  @@map("venda_itens")
+}
+
+model Fatura {
+  id             String   @id @default(cuid())
+  numero         String   @unique  // FAT-2025-00001
+  vendaId        String   @unique
+  serie          String   @default("A")
+  dataEmissao    DateTime @default(now())
+  dataVencimento DateTime?
+  observacoes    String?
+
+  venda          Venda    @relation(fields: [vendaId], references: [id])
+
+  @@map("faturas")
+}
+
+// =============================================
+// COMPRAS
+// =============================================
+
+model CompraOrdem {
+  id            String       @id @default(cuid())
+  numero        String       @unique  // OC-2025-00001
+  fornecedorId  String
+  userId        String
+  totalItens    Int
+  subtotal      Decimal      @db.Decimal(10, 2)
+  totalIva      Decimal      @db.Decimal(10, 2)
+  total         Decimal      @db.Decimal(10, 2)
+  estado        EstadoCompra @default(RECEBIDA)
+  nrFactura     String?      // nº da factura do fornecedor
+  observacoes   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  fornecedor    Fornecedor   @relation(fields: [fornecedorId], references: [id])
+  user          User         @relation(fields: [userId], references: [id])
+  itens         CompraItem[]
+
+  @@index([createdAt])
+  @@index([fornecedorId])
+  @@map("compra_ordens")
+}
+
+model CompraItem {
+  id           String   @id @default(cuid())
+  compraId     String
+  produtoId    String
+  nomeProduto  String
+  quantidade   Int
+  precoUnit    Decimal  @db.Decimal(10, 2)
+  subtotal     Decimal  @db.Decimal(10, 2)
+  lote         String?
+  validade     DateTime?
+
+  compra       CompraOrdem @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  produto      Produto     @relation(fields: [produtoId], references: [id])
+
+  @@map("compra_itens")
+}
